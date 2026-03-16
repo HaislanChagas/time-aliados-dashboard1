@@ -17,7 +17,6 @@ st.set_page_config(page_title="Time Aliados", page_icon="📊", layout="wide")
 SHEET_ID = "1KvGqEJ26oGsayOYZv3ynaiiN0ya9VxG6ofDoBOKu22w"
 LOGO_PATH = "logo_time_aliados.png"
 
-# Intervalos fixos para reduzir leituras da API
 RANGE_CONSULTOR = "A1:AF20"
 RANGE_PROCESSOS = "A1:I500"
 RANGE_METAS = "A1:G50"
@@ -370,7 +369,10 @@ def carregar_dados_produtividade():
     try:
         sh = abrir_planilha()
         abas = listar_abas()
-        abas_consultores = [a for a in abas if normalizar_texto(a) not in {normalizar_texto(x) for x in ABAS_EXCLUIDAS_FIXAS}]
+        abas_consultores = [
+            a for a in abas
+            if normalizar_texto(a) not in {normalizar_texto(x) for x in ABAS_EXCLUIDAS_FIXAS}
+        ]
 
         if not abas_consultores:
             return pd.DataFrame(columns=["Consultor", "Etapa", "Dia", "Valor"]), ["Nenhuma aba de consultor detectada."], []
@@ -426,7 +428,7 @@ def carregar_dados_produtividade():
         df["Valor"] = pd.to_numeric(df["Valor"], errors="coerce").fillna(0.0)
         return df, avisos, abas_consultores
     except Exception as e:
-        return pd.DataFrame(columns=["Consultor", "Etapa", "Dia", "Valor"]), [f"Produtividade: {type(e).__name__}"], []
+        return pd.DataFrame(columns=["Consultor", "Etapa", "Dia", "Valor"]), [f"Produtividade: {type(e).__name__}: {str(e)}"], []
 
 
 # =========================
@@ -451,13 +453,21 @@ def carregar_processos_quentes():
             return pd.DataFrame(), [f"A aba {nome_aba} não possui cabeçalho válido."]
 
         df_raw = pd.DataFrame(linhas, columns=header)
+
+        if df_raw.empty:
+            return pd.DataFrame(), [f"A aba {nome_aba} não possui dados."]
+
         dados = {}
 
         for campo, aliases in COLUNAS_PROCESSOS_MAP.items():
             idx = encontrar_indice_coluna(list(df_raw.columns), aliases)
-            dados[campo] = df_raw.iloc[:, idx] if idx is not None else ""
+            if idx is not None:
+                dados[campo] = df_raw.iloc[:, idx].reset_index(drop=True)
+            else:
+                dados[campo] = pd.Series([""] * len(df_raw), index=df_raw.index)
 
         df = pd.DataFrame(dados)
+
         for col in ["status", "corretor", "cliente", "produto", "construtora", "gerente", "correspondente"]:
             df[col] = df[col].astype(str).str.strip()
 
@@ -468,11 +478,13 @@ def carregar_processos_quentes():
             (df["cliente"].astype(str).str.strip() != "")
             | (df["status"].astype(str).str.strip() != "")
             | (df["valor_imovel"] > 0)
+            | (df["valor_financiamento"] > 0)
         ].copy()
 
         return df, []
+
     except Exception as e:
-        return pd.DataFrame(), [f"Processos Quentes: {type(e).__name__}"]
+        return pd.DataFrame(), [f"Processos Quentes: {type(e).__name__}: {str(e)}"]
 
 
 # =========================
@@ -497,11 +509,17 @@ def carregar_metas():
             return pd.DataFrame(), [f"A aba {nome_aba} não possui cabeçalho válido."]
 
         df_raw = pd.DataFrame(linhas, columns=header)
+        if df_raw.empty:
+            return pd.DataFrame(), [f"A aba {nome_aba} não possui dados."]
+
         dados = {}
 
         for campo, aliases in COLUNAS_METAS_MAP.items():
             idx = encontrar_indice_coluna(list(df_raw.columns), aliases)
-            dados[campo] = df_raw.iloc[:, idx] if idx is not None else ""
+            if idx is not None:
+                dados[campo] = df_raw.iloc[:, idx].reset_index(drop=True)
+            else:
+                dados[campo] = pd.Series([""] * len(df_raw), index=df_raw.index)
 
         df = pd.DataFrame(dados)
         df["consultor"] = df["consultor"].astype(str).str.strip()
@@ -519,7 +537,7 @@ def carregar_metas():
         df = df[df["consultor"] != ""].copy()
         return df, []
     except Exception as e:
-        return pd.DataFrame(), [f"Metas: {type(e).__name__}"]
+        return pd.DataFrame(), [f"Metas: {type(e).__name__}: {str(e)}"]
 
 
 # =========================
@@ -551,6 +569,7 @@ def carregar_roleta():
 
         bloco = valores[header_idx:]
         header, linhas = padronizar_linhas(bloco)
+
         idx_data = encontrar_indice_coluna(header, ["data"])
         idx_roleta = encontrar_indice_coluna(header, ["roleta"])
 
@@ -558,6 +577,7 @@ def carregar_roleta():
         for linha in linhas:
             data_val = linha[idx_data] if idx_data is not None and idx_data < len(linha) else ""
             roleta_val = linha[idx_roleta] if idx_roleta is not None and idx_roleta < len(linha) else ""
+
             if str(data_val).strip() != "" or str(roleta_val).strip() != "":
                 rows.append(
                     {
@@ -575,7 +595,7 @@ def carregar_roleta():
         df = df.sort_values("Dia").copy()
         return df, []
     except Exception as e:
-        return pd.DataFrame(), [f"Roleta: {type(e).__name__}"]
+        return pd.DataFrame(), [f"Roleta: {type(e).__name__}: {str(e)}"]
 
 
 # =========================
@@ -958,19 +978,9 @@ def render_metas():
         .sum()
     )
 
-    mapa_realizado = {
-        ("Leads", "realizado_leads"): "Leads",
-        ("Atendimento", "realizado_atendimento"): "Atendimento",
-        ("Agendamento Visita", "realizado_agendamento"): "Agendamento Visita",
-        ("Pasta Docs", "realizado_pasta_docs"): "Pasta Docs",
-        ("Crédito Aprovado", "realizado_credito"): "Crédito Aprovado",
-    }
-
     linhas = []
     for _, row in df_metas_base.iterrows():
         consultor = str(row["consultor"]).strip()
-        for etapa, nome_saida in mapa_realizado.items():
-            pass
 
         rl = float(
             realizado[
