@@ -1,0 +1,14 @@
+# secrets (não subir para o GitHub)
+.streamlit/secrets.toml
+
+# ambiente python
+.venv/
+venv/
+
+# cache python
+__pycache__/
+*.pyc
+
+# arquivos do sistema
+.DS_Store
+Thumbs.db
