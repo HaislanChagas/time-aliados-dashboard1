@@ -18,7 +18,7 @@ st.set_page_config(page_title="Time Aliados", layout="wide")
 # CONFIG
 # ===============================
 
-SHEET_ID = "COLOQUE_AQUI_O_ID_DA_PLANILHA"
+SHEET_ID = "1KvGqEJ26oGsayOYZv3ynaiiN0ya9VxG6ofDoBOKu22w"
 
 RANGE_CONSULTOR = "A1:AF20"
 RANGE_PROCESSOS = "A1:I500"
