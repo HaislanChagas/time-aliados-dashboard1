@@ -709,8 +709,8 @@ else:
 # RENDERS
 # =========================
 def render_produtividade():
-    if df_base.empty:
-        st.info("Sem dados de produtividade disponíveis no momento.")
+    if df_base.empty and df_processos_base.empty:
+        st.info("Sem dados disponíveis no momento.")
         return
 
     kpis = (
@@ -718,7 +718,17 @@ def render_produtividade():
         .sum()
         .set_index("Etapa")["Valor"]
         .to_dict()
+        if not df_base.empty
+        else {}
     )
+
+    credito_aprovado_real = int(
+        len(
+            df_processos_base[
+                df_processos_base["status"].astype(str).str.strip().str.upper() == "APROVADO"
+            ]
+        )
+    ) if not df_processos_base.empty else 0
 
     cols = st.columns(5)
     cards = [
@@ -726,8 +736,12 @@ def render_produtividade():
         ("Atendimento", int(kpis.get("Atendimento", 0))),
         ("Agendamento Visita", int(kpis.get("Agendamento Visita", 0))),
         ("Pasta Docs", int(kpis.get("Pasta Docs", 0))),
-        ("Crédito Aprovado", int(kpis.get("Crédito Aprovado", 0))),
+        ("Crédito Aprovado", credito_aprovado_real),
     ]
+
+    for col, (titulo, valor) in zip(cols, cards):
+        with col:
+            kpi_card(f"{titulo_visao} • {titulo}", valor)
 
     for col, (titulo, valor) in zip(cols, cards):
         with col:
