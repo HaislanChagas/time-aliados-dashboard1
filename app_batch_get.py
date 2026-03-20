@@ -17,8 +17,8 @@ st.set_page_config(page_title="Time Aliados", page_icon="📊", layout="wide")
 SHEET_ID = "1KvGqEJ26oGsayOYZv3ynaiiN0ya9VxG6ofDoBOKu22w"
 LOGO_PATH = "logo_time_aliados.png"
 
-RANGE_CONSULTOR = "A1:AF20"
-RANGE_PROCESSOS = "A1:I500"
+RANGE_CONSULTOR = "A1:AF10"
+RANGE_PROCESSOS = "A1:I50"
 RANGE_METAS = "A1:G50"
 RANGE_ROLETA = "A1:B40"
 
@@ -275,7 +275,11 @@ def safe_values_batch_get(sh, ranges, tentativas=3, pausa=2):
 def ler_intervalo_seguro(ws, intervalo, tentativas=3, pausa=2):
     for tentativa in range(tentativas):
         try:
-            return ws.get(intervalo)
+            return ws.get(
+                intervalo,
+                maintain_size=True,
+                pad_values=True,
+            )
         except Exception:
             if tentativa < tentativas - 1:
                 time.sleep(pausa)
