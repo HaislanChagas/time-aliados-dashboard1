@@ -990,31 +990,34 @@ def render_metas():
             realizado[
                 (realizado["Consultor"].astype(str).str.strip().str.lower() == consultor.lower())
                 & (realizado["Etapa"] == "Leads")
-            ]["Valor"].sum()
+                ]["Valor"].sum()
         )
         ra = float(
             realizado[
                 (realizado["Consultor"].astype(str).str.strip().str.lower() == consultor.lower())
                 & (realizado["Etapa"] == "Atendimento")
-            ]["Valor"].sum()
+                ]["Valor"].sum()
         )
         rag = float(
             realizado[
                 (realizado["Consultor"].astype(str).str.strip().str.lower() == consultor.lower())
                 & (realizado["Etapa"] == "Agendamento Visita")
-            ]["Valor"].sum()
+                ]["Valor"].sum()
         )
         rpd = float(
             realizado[
                 (realizado["Consultor"].astype(str).str.strip().str.lower() == consultor.lower())
                 & (realizado["Etapa"] == "Pasta Docs")
-            ]["Valor"].sum()
+                ]["Valor"].sum()
         )
+
         rc = float(
-            realizado[
-                (realizado["Consultor"].astype(str).str.strip().str.lower() == consultor.lower())
-                & (realizado["Etapa"] == "Crédito Aprovado")
-            ]["Valor"].sum()
+            len(
+                df_processos_base[
+                    (df_processos_base["corretor"].astype(str).str.strip().str.lower() == consultor.lower())
+                    & (df_processos_base["status"].astype(str).str.strip().str.upper() == "APROVADO")
+                    ]
+            )
         )
 
         linhas.append(
