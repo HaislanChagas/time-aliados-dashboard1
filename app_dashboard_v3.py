@@ -69,7 +69,6 @@ def conectar_supabase() -> Client:
 def carregar_produtividade():
     supabase = conectar_supabase()
 
-    # usuários
     usuarios_res = supabase.table("usuarios").select("id,nome").eq("ativo", True).execute()
     usuarios = usuarios_res.data or []
 
@@ -78,8 +77,13 @@ def carregar_produtividade():
 
     mapa_usuarios = {u["id"]: u["nome"] for u in usuarios}
 
-    # etapas
-    etapas_res = supabase.table("etapas").select("id,nome,ordem").eq("ativo", True).order("ordem").execute()
+    etapas_res = (
+        supabase.table("etapas")
+        .select("id,nome,ordem")
+        .eq("ativo", True)
+        .order("ordem")
+        .execute()
+    )
     etapas = etapas_res.data or []
 
     if not etapas:
@@ -87,10 +91,11 @@ def carregar_produtividade():
 
     mapa_etapas = {e["id"]: e["nome"] for e in etapas}
 
-    # produtividade
-    prod_res = supabase.table("produtividade_diaria").select(
-        "usuario_id,etapa_id,data_referencia,quantidade"
-    ).execute()
+    prod_res = (
+        supabase.table("produtividade_diaria")
+        .select("usuario_id,etapa_id,data_referencia,quantidade")
+        .execute()
+    )
 
     dados = prod_res.data or []
 
@@ -130,6 +135,7 @@ def carregar_processos():
     try:
         res = supabase.table("processos_quentes").select("*").execute()
         dados = res.data or []
+
         if not dados:
             return pd.DataFrame()
 
@@ -140,6 +146,8 @@ def carregar_processos():
 
         if "valor_imovel" in df.columns:
             df["valor"] = df["valor_imovel"].apply(normalizar_numero)
+        elif "valor do imóvel" in df.columns:
+            df["valor"] = df["valor do imóvel"].apply(normalizar_numero)
 
         return df
     except:
@@ -156,8 +164,10 @@ def carregar_metas():
     try:
         res = supabase.table("metas").select("*").execute()
         dados = res.data or []
+
         if not dados:
             return pd.DataFrame()
+
         return pd.DataFrame(dados)
     except:
         return pd.DataFrame()
@@ -173,8 +183,10 @@ def carregar_roleta():
     try:
         res = supabase.table("roleta").select("*").execute()
         dados = res.data or []
+
         if not dados:
             return pd.DataFrame()
+
         return pd.DataFrame(dados)
     except:
         return pd.DataFrame()
@@ -215,8 +227,8 @@ if not df_prod.empty:
     anos = sorted(df_prod["Ano"].dropna().unique().tolist())
     meses = sorted(df_prod["Mes"].dropna().unique().tolist())
 
-    ano_sel = st.sidebar.selectbox("Ano", anos, index=len(anos)-1 if anos else 0)
-    mes_sel = st.sidebar.selectbox("Mês", meses, index=len(meses)-1 if meses else 0)
+    ano_sel = st.sidebar.selectbox("Ano", anos, index=len(anos) - 1 if anos else 0)
+    mes_sel = st.sidebar.selectbox("Mês", meses, index=len(meses) - 1 if meses else 0)
 
     df_prod = df_prod[(df_prod["Ano"] == ano_sel) & (df_prod["Mes"] == mes_sel)]
 
@@ -234,19 +246,90 @@ if not df_prod.empty:
         total = int(df_prod[df_prod["Etapa"] == etapa]["Valor"].sum())
         cols[i].metric(etapa, total)
 
-    # Métrica de comparecimento
+    # ===============================
+    # MÉTRICAS DE VISITAS
+    # ===============================
+
     agendadas = df_prod[df_prod["Etapa"] == "Visitas Agendadas"]["Valor"].sum()
     realizadas = df_prod[df_prod["Etapa"] == "Visitas Realizadas"]["Valor"].sum()
     taxa_visita = (realizadas / agendadas * 100) if agendadas > 0 else 0
 
-    st.metric("Taxa de Visitas Realizadas", f"{taxa_visita:.1f}%")
+    st.subheader("Indicadores de Visitas")
 
-    # Evolução diária
+    col_a, col_b, col_c = st.columns(3)
+    col_a.metric("Visitas Agendadas", int(agendadas))
+    col_b.metric("Visitas Realizadas", int(realizadas))
+    col_c.metric("Taxa de Comparecimento", f"{taxa_visita:.1f}%")
+
+    # ===============================
+    # GRÁFICO 1 - DIÁRIO
+    # ===============================
+
+    st.subheader("Visitas Agendadas x Realizadas por Dia")
+
+    df_visitas = df_prod[df_prod["Etapa"].isin(["Visitas Agendadas", "Visitas Realizadas"])].copy()
+
+    if not df_visitas.empty:
+        visitas_dia = (
+            df_visitas.groupby(["Dia", "Etapa"])["Valor"]
+            .sum()
+            .reset_index()
+        )
+
+        fig = px.bar(
+            visitas_dia,
+            x="Dia",
+            y="Valor",
+            color="Etapa",
+            barmode="group",
+            title="Comparativo diário de visitas"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Sem dados de visitas agendadas e realizadas.")
+
+    # ===============================
+    # GRÁFICO 2 - CONSOLIDADO
+    # ===============================
+
+    st.subheader("Resumo de Visitas no Mês")
+
+    if not df_visitas.empty:
+        visitas_total = (
+            df_visitas.groupby("Etapa")["Valor"]
+            .sum()
+            .reset_index()
+        )
+
+        visitas_total["Etapa"] = pd.Categorical(
+            visitas_total["Etapa"],
+            categories=["Visitas Agendadas", "Visitas Realizadas"],
+            ordered=True
+        )
+        visitas_total = visitas_total.sort_values("Etapa")
+
+        fig = px.bar(
+            visitas_total,
+            x="Etapa",
+            y="Valor",
+            title="Visitas Agendadas x Realizadas no mês"
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # ===============================
+    # EVOLUÇÃO GERAL
+    # ===============================
+
+    st.subheader("Evolução Geral por Etapa")
+
     evolucao = (
         df_prod.groupby(["Dia", "Etapa"])["Valor"]
         .sum()
         .reset_index()
     )
+
+    evolucao["Etapa"] = pd.Categorical(evolucao["Etapa"], categories=ETAPAS, ordered=True)
+    evolucao = evolucao.sort_values(["Dia", "Etapa"])
 
     fig = px.line(
         evolucao,
@@ -257,7 +340,12 @@ if not df_prod.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Ranking por leads
+    # ===============================
+    # RANKING
+    # ===============================
+
+    st.subheader("Ranking de Leads por Consultor")
+
     ranking = (
         df_prod[df_prod["Etapa"] == "Leads"]
         .groupby("Consultor")["Valor"]
@@ -275,7 +363,12 @@ if not df_prod.empty:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-    # Funil consolidado
+    # ===============================
+    # FUNIL
+    # ===============================
+
+    st.subheader("Funil de Conversão")
+
     funil = (
         df_prod.groupby("Etapa")["Valor"]
         .sum()
